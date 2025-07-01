@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Besmi',
   webDir: 'dist',
   server: {
-    url: 'https://besmi.replit.app',
+    url: 'https://besmi.com',
     cleartext: true
   },
   android: {
