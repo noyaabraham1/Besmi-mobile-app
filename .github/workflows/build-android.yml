@@ -1,4 +1,4 @@
-name: Build Besmi Native Mobile App
+name: Build Besmi Android APK - Authentication Fix
 
 on:
   workflow_dispatch:
@@ -8,180 +8,189 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Set up Node.js 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        
-      - name: Create project structure
-        run: |
-          mkdir -p www
-          
-      - name: Create mobile app HTML
-        run: |
-          cat > www/index.html << 'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Besmi</title>
-              <style>
-                  body { 
-                      font-family: -apple-system, sans-serif; 
-                      background: linear-gradient(135deg, #667eea, #764ba2); 
-                      color: white; 
-                      height: 100vh; 
-                      display: flex; 
-                      align-items: center; 
-                      justify-content: center; 
-                      text-align: center;
-                      margin: 0;
-                  }
-                  .container { display: flex; flex-direction: column; align-items: center; }
-                  .logo { 
-                      width: 100px; 
-                      height: 100px; 
-                      background: black; 
-                      border-radius: 20px; 
-                      display: flex; 
-                      align-items: center; 
-                      justify-content: center; 
-                      margin-bottom: 20px; 
-                  }
-                  .logo-text { 
-                      font-size: 40px; 
-                      color: white; 
-                      font-weight: bold; 
-                  }
-                  h1 { font-size: 2rem; margin: 20px 0; }
-                  .loading { margin: 20px 0; }
-              </style>
-          </head>
-          <body>
-              <div class="container">
-                  <div class="logo">
-                      <div class="logo-text">B</div>
-                  </div>
-                  <h1>Besmi</h1>
-                  <p>Professional Lash Booking</p>
-                  <div class="loading">Loading your experience...</div>
-                  <script>
-                      setTimeout(() => {
-                          window.location.href = "https://besmi.com";
-                      }, 3000);
-                  </script>
-              </div>
-          </body>
-          </html>
-          EOF
-          
-      - name: Create package.json
-        run: |
-          cat > package.json << 'EOF'
-          {
-            "name": "besmi-mobile",
-            "version": "1.0.0",
-            "dependencies": {
-              "@capacitor/core": "^6.1.0",
-              "@capacitor/cli": "^6.1.0",
-              "@capacitor/android": "^6.1.0",
-              "@capacitor/camera": "^6.0.0",
-              "@capacitor/push-notifications": "^6.0.0",
-              "@capacitor/haptics": "^6.0.0",
-              "@capacitor/status-bar": "^6.0.0",
-              "@capacitor/keyboard": "^6.0.0",
-              "@capacitor/splash-screen": "^6.0.0"
-            }
-          }
-          EOF
-          
-      - name: Install dependencies
-        run: npm install
-        
-      - name: Create Capacitor config
-        run: |
-          cat > capacitor.config.json << 'EOF'
-          {
-            "appId": "com.besmi.lashbooking",
-            "appName": "Besmi",
-            "webDir": "www",
-            "server": {
-              "url": "https://besmi.com",
-              "cleartext": true
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: Create Correct Capacitor Config
+      run: |
+        cat > capacitor.config.ts << 'EOF'
+        import { CapacitorConfig } from '@capacitor/cli';
+
+        const config: CapacitorConfig = {
+          appId: 'com.besmi.lashbooking',
+          appName: 'Besmi',
+          webDir: 'dist',
+          server: {
+            url: 'https://besmi.com',
+            cleartext: true,
+            androidScheme: 'https'
+          },
+          android: {
+            allowMixedContent: true,
+            webContentsDebuggingEnabled: false
+          },
+          plugins: {
+            SplashScreen: {
+              launchShowDuration: 2000,
+              backgroundColor: "#000000",
+              showSpinner: false,
+              androidSplashResourceName: "splash",
+              splashFullScreen: true,
+              splashImmersive: true
             },
-            "plugins": {
-              "SplashScreen": {
-                "launchShowDuration": 3000,
-                "backgroundColor": "#667eea",
-                "showSpinner": false
-              }
+            StatusBar: {
+              style: 'dark',
+              backgroundColor: '#000000'
+            },
+            PushNotifications: {
+              presentationOptions: ["badge", "sound", "alert"]
             }
           }
-          EOF
-          
-      - name: Add Android platform
-        run: npx cap add android
+        };
+
+        export default config;
+        EOF
+    
+    - name: Create Mobile Auth Fix Files
+      run: |
+        mkdir -p client/src/components
         
-      - name: Create Besmi app icons
-        run: |
-          pip install Pillow
-          python3 -c "
-          from PIL import Image, ImageDraw, ImageFont
-          import os
-          
-          def create_icon(size, path):
-              img = Image.new('RGBA', (size, size), (0, 0, 0, 255))
-              draw = ImageDraw.Draw(img)
-              font_size = int(size * 0.6)
-              try:
-                  font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', font_size)
-              except:
-                  font = ImageFont.load_default()
-              
-              text = 'B'
-              bbox = draw.textbbox((0, 0), text, font=font)
-              w, h = bbox[2] - bbox[0], bbox[3] - bbox[1]
-              x, y = (size - w) // 2, (size - h) // 2
-              draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
-              
-              os.makedirs(os.path.dirname(path), exist_ok=True)
-              img.save(path, 'PNG')
-              print(f'Created {path} ({size}x{size})')
-          
-          create_icon(48, 'android/app/src/main/res/mipmap-mdpi/ic_launcher.png')
-          create_icon(72, 'android/app/src/main/res/mipmap-hdpi/ic_launcher.png')
-          create_icon(96, 'android/app/src/main/res/mipmap-xhdpi/ic_launcher.png')
-          create_icon(144, 'android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png')
-          create_icon(192, 'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png')
-          "
-          
-      - name: Sync Capacitor
-        run: npx cap sync android
+        # Create MobileErrorBoundary component
+        cat > client/src/components/MobileErrorBoundary.tsx << 'EOF'
+        import { Component, ReactNode, ErrorInfo } from 'react';
+        import { Button } from '@/components/ui/button';
+        import { AlertTriangle, RefreshCw } from 'lucide-react';
+
+        interface Props {
+          children: ReactNode;
+        }
+
+        interface State {
+          hasError: boolean;
+          error?: Error;
+          errorInfo?: ErrorInfo;
+        }
+
+        export class MobileErrorBoundary extends Component<Props, State> {
+          constructor(props: Props) {
+            super(props);
+            this.state = { hasError: false };
+          }
+
+          static getDerivedStateFromError(error: Error): State {
+            return { hasError: true, error };
+          }
+
+          componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+            console.error('Mobile app error:', error, errorInfo);
+            this.setState({ error, errorInfo });
+          }
+
+          handleReload = () => {
+            window.location.reload();
+          };
+
+          handleReset = () => {
+            this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+          };
+
+          render() {
+            if (this.state.hasError) {
+              return (
+                <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+                  <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6 text-center">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertTriangle className="w-8 h-8 text-red-600" />
+                    </div>
+                    
+                    <h1 className="text-xl font-semibold text-gray-900 mb-2">
+                      App Error
+                    </h1>
+                    
+                    <p className="text-gray-600 mb-6">
+                      Something went wrong. Let's get you back on track.
+                    </p>
+
+                    <div className="space-y-3">
+                      <Button 
+                        onClick={this.handleReset}
+                        className="w-full"
+                        variant="outline"
+                      >
+                        Try Again
+                      </Button>
+                      
+                      <Button 
+                        onClick={this.handleReload}
+                        className="w-full"
+                      >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Reload App
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return this.props.children;
+          }
+        }
+        EOF
         
-      - name: Build APK
-        run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        # Update App.tsx to include error boundary
+        if [ -f "client/src/App.tsx" ]; then
+          # Add import if not present
+          grep -q "MobileErrorBoundary" client/src/App.tsx || sed -i '/import.*TooltipProvider/a import { MobileErrorBoundary } from "@/components/MobileErrorBoundary";' client/src/App.tsx
           
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: besmi-mobile-app
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          
-      - name: Build Complete
-        run: |
-          echo "Besmi Mobile App Build Complete!"
-          echo "Connects to: https://besmi.com"
-          echo "Download APK from Actions artifacts"
+          # Wrap Router with error boundary if not already wrapped
+          if ! grep -q "MobileErrorBoundary>" client/src/App.tsx; then
+            sed -i 's/<Toaster \/>/<MobileErrorBoundary>\n          <Toaster \/>/; s/<Router \/>/<Router \/>\n        <\/MobileErrorBoundary>/' client/src/App.tsx
+          fi
+        fi
+    
+    - name: Install Dependencies
+      run: |
+        npm install
+        cd client && npm install
+    
+    - name: Build Web App with Mobile Fixes
+      run: |
+        cd client && npm run build
+        cd .. && cp -r client/dist .
+    
+    - name: Install Capacitor CLI
+      run: npm install -g @capacitor/cli
+    
+    - name: Add Android Platform
+      run: npx cap add android
+    
+    - name: Sync Capacitor
+      run: npx cap sync android
+    
+    - name: Build Android APK
+      run: |
+        cd android
+        ./gradlew assembleDebug
+    
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: besmi-android-apk-auth-fix-correct-url
+        path: android/app/build/outputs/apk/debug/app-debug.apk
+        retention-days: 30
